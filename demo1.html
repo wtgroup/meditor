@@ -1,0 +1,220 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+
+    <script type="text/javascript" src="js/lib/jquery-1.12.1.min.js"></script>
+
+    <style>
+        .md_editor {
+            width: 30%;
+            position: absolute;
+            border: 2px solid #d5e7f3;
+        }
+
+        .md_group {
+            height: 20px;
+        }
+
+        .md_cursor {
+            box-sizing: border-box;
+            border-left: 2px solid;
+            position: absolute;
+        }
+
+        .text_input {
+            position: absolute;
+            z-index: -1;
+        }
+    </style>
+</head>
+<body>
+<!--<div contenteditable="true"></div>-->
+
+<div class="md_editor">
+    <textarea class="text_input" wrap="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+              style="opacity: 1; height: 26px; width: 16px;"></textarea>
+    <div class="md_cursor" style="width: 8px; height: 26px;"></div>
+
+
+    <!--<p id='g0' class="md_group"></p>-->
+
+
+</div>
+
+
+</body>
+<script>
+
+
+    /*shift按下监听不到
+    $('div').keypress(function (e) {
+         console.log('keypress');
+         console.log(e.keyCode);
+     })*/
+
+    class MdNode {
+        constructor() {
+            this.type = 'paragraph';
+            //顶级标签
+            this.tag = 'p';
+            //原始文本内容
+            this.text = '';
+        }
+
+        //变成html
+        toHtml() {
+            return $(this.tag
+            ).text(this.text);
+        }
+
+
+    }
+
+
+    $(document).ready(function () {
+        /*$('.line_group').click(function () {
+            //console.log($(this).css('left'),$(this).css('top')) 有时候获取到时auto
+            console.log($(this).position().left, $(this).position().top)
+        })*/
+
+
+        //存放原始内容
+        //jq标签->[文本内容]
+        let sourceMap = new Map();
+        let $textInput = $('.text_input');
+        let $mdCursor = $('.md_cursor');
+        let $mdEditor = $('.md_editor');
+
+        let mdEditorWidth = $mdEditor.width();
+
+        let wordWith = 8;
+        //单个拉丁字符
+        let aLatReg = /^[\x00-\xff]$/;
+
+        let $currentGroup;
+        let gId = 'g0';
+        //当前光标所在的位置, 也是组内容数组索引
+        let curPos = 0;
+        let iptVal;
+        if (sourceMap.get(gId) == null) {
+            sourceMap.set(gId, []);
+        }
+        let gCnt = sourceMap.get(gId);
+
+        //页面加载时, 初始化首个group容器
+        $currentGroup = $('<p id="g0" class="md_group"></p>');
+        $mdEditor.append($currentGroup);
+        $textInput.focus();
+
+
+        //
+        $('.md_group').click(function (e) {
+            //更新当前group
+            $currentGroup = $(this);
+            gId = $currentGroup.attr('id');
+            //console.log($(this));
+            //console.log($(this).offset());
+            //top由当前块标签的top决定
+            let top = $(this).position().top;
+            let left = e.pageX;
+            console.log(top, left);
+            $mdCursor.css({'left': left, 'top': top});
+            console.log($mdCursor.position());
+            $textInput.css({'left': left, 'top': top}).focus();
+        });
+
+
+        let isPinyin;
+        let onceIptStart = false;
+
+        /*触发顺序:
+        * 非拼音: keydown, keyup
+        * 拼音: keydown,start,input,keyup,keydown,input,keyup... end
+        * */
+
+        /**
+         * 一次输入成功后的结尾操作
+         */
+        function _doOnceIptEnd(wordWith) {
+            $(this).val('');
+            let rf = 0;
+
+            let tmp = gCnt[curPos].split('');
+            gCnt.splice(curPos, 1);
+            //本次输入字符打散, 倒序遍历插入到数组
+            for (let i = tmp.length - 1; i >= 0; i--) {
+                let item = tmp[i];
+                if (item.match(aLatReg)) {
+                    //非中文
+                    rf += wordWith;
+                }else{
+                    rf += wordWith * 2;     //todo 暂简单处理成2倍
+                }
+                gCnt.splice(curPos, 0, item);
+            }
+
+            //光标后移
+            curPos += tmp.length;
+            //显示后移
+            $mdCursor.css({'left': $mdCursor.position().left += rf});
+            $textInput.css({'left': $textInput.position().left += rf});
+            //一次输入成功结束
+            onceIptStart = false;
+        }
+
+        $textInput.on('compositionstart', function () {
+            isPinyin = true;
+            console.log('start');
+
+        }).on('compositionend', function () {
+            console.log('end');
+            //理论上, 拼音时, 在input中不会执行
+            if (onceIptStart) {
+                //说明还没有执行一次输入结束操作
+                _doOnceIptEnd.call(this, wordWith);
+            }
+
+            isPinyin = false
+        }).on('input', function () {
+            console.log('input');
+            iptVal = $(this).val();
+            if (!onceIptStart) {
+                onceIptStart = true;
+                gCnt.splice(curPos, 0, '');
+            }
+            console.log('本次输入:', iptVal);
+            //将文本域的值拿出, 给sourceMap
+
+
+            //若拼音状态, 仅将值替换槽位, 否则还要清空textarea
+            gCnt[curPos] = iptVal;
+
+            //实时显示本组内容
+            $currentGroup.html(gCnt.join(''));
+
+            //1)拉丁字符输入;2)拼音结束
+            if (!isPinyin) {
+                _doOnceIptEnd.call(this, wordWith);
+            }
+
+        }).keydown(function (e) {
+            console.log('keydown');
+            console.log(e.keyCode);
+            //回车
+            if (e.keyCode == 13) {
+                e.preventDefault();
+            }
+        }).keyup(function (e) {
+            console.log('keyup');
+
+        }).blur(function () {
+            //console.log(sourceMap.values());
+        })
+
+
+    });
+
+
+</script>
+</html>

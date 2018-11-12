@@ -1,0 +1,52 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+
+    <script type="text/javascript" src="js/lib/jquery-1.12.1.min.js"></script>
+    <script type="text/javascript" src="js/mdeditor.js"></script>
+
+    <style>
+        [contenteditable="true"] {
+            border: 1px solid green;
+            caret-color: red;
+        }
+    </style>
+</head>
+<body>
+<div contenteditable="true" id="txt"></div>
+<!--<textarea name="" id="txt" cols="30" rows="10"></textarea>-->
+
+<div class="md_editor">
+
+    <!--<div class="md_cursor" style="width: 8px; height: 26px;"></div>-->
+
+
+    <!--<p id='g0' class="md_group"></p>-->
+
+
+</div>
+
+
+</body>
+<script>
+    $(function () {
+        $('#txt').on('input',function () {
+            //这两个属性只适合input, textarea
+            //console.log(this.selectionStart, this.selectionEnd);
+            let textbox = this;
+            let sel = window.getSelection();
+            let range = document.createRange();
+            //选择节点中的所有内容==全选
+            range.selectNodeContents(textbox);
+            //collapses the range to end
+            range.collapse(false);
+            sel.removeAllRanges();
+            //更新range
+            sel.addRange(range);
+        })
+
+    })
+
+</script>
+</html>
