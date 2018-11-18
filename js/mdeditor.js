@@ -1,11 +1,139 @@
 /*
 paragraph,blockquote,blockcode,table,head,ullist,ollist,image,
 */
+const Constant = {
+    LF: "\n"
+};
+//--md types--//
+let _mtypes = ["paragraph", "blockquote", "blockcode", "table", "head", "ullist", "ollist", "image",];
+Constant.mtype = {
+    all: new Set(_mtypes),
+    paragraph: _mtypes[0],
+    blockquote: _mtypes[1],
+    blockcode: _mtypes[2],
+    table: _mtypes[3],
+    head: _mtypes[4],
+    //todo 补全
+};
 
-const ALL_MDTYPE = new Set(["paragraph", "blockquote", "blockcode", "table", "head", "ullist", "ollist", "image",]);
-const LF = '\n';
 
-class MNode {
+class ModeFactory {
+    constructor(context) {
+
+        //上下文环境
+        this.context = {
+            $mEditor: null,
+            modeMap: new Map(),
+            currentMode: null,
+        }
+        $.extend(this.context, context);
+        let that = this;
+        this.context.$mEditor.on("click", function (e) {
+            console.log("e.target", e.target);
+            if (e != null && e.target != null && e.target.hasAttribute("mid")) {
+                that.context.currentMode = that.context.modeMap.get(e.target.attr("mid"));
+            }
+        })
+
+
+        this.mid = -1;
+
+    }
+
+    /**
+     * {
+     *   modeClass:Mode具体类型,
+     *   level:标题级别数字,
+     *   meta:元数据,
+     * }
+     *
+     * @param args
+     * @returns {*}
+     */
+    createMode(args) {
+        if (args == null || args.modeClass == null) {
+            console.log("not specify mode class")
+            return null;
+        }
+        //要求是 Mode 及其子类
+        if (!(Mode.isPrototypeOf(args.modeClass) || args.modeClass === Mode)) {
+            console.log("not supported mode class: " + args.modeClass);
+            return null;
+        }
+
+        let mode;
+        let mid = this.nextMid();
+        if (args.modeClass === Paragraph) {
+            let para$el = $('<p mid="' + mid + '" mtype="paragraph" contenteditable="true"></p>');
+            mode = new args.modeClass(args.meta, args.parent, para$el);
+        } else if (args.modeClass === MHead) {
+            let hn = 'h' + args.level;
+            let mh$el = $('<' + hn + ' mid="' + mid + '" mtype="head" contenteditable="true"></' + hn + '>');
+            mode = new MHead(args.level, args.meta, mh$el);
+        }
+
+        this.context.modeMap.set(mid, mode);
+        if (mode.previous == null) {
+            this.context.$mEditor.append(mode.$el);
+            mode.$el.focus();
+        } else {
+            //Note:previous 必须已经在dom容器中了才有效
+            mode.previous.$el.after(mode.$el);
+        }
+
+        return mode;
+    }
+
+    replaceWith(oldMode, newMode) {
+        oldMode.$el.replaceWith(newMode.$el);
+        newMode.previous = oldMode.previous;
+        newMode.next = oldMode.next;
+        this.context.modeMap.delete(oldMode.getMid());
+        this.context.modeMap.set(newMode.getMid(), newMode);
+        oldMode = null;    //置空便于回收
+    }
+
+
+    nextMid() {
+        return this.mid += 2;
+    }
+
+    inputHandle($dom) {
+        let input = $dom.text();
+        console.log(input);
+
+        let headLikeReg = /^(#{1,6})\s+(.+)(?:\n|$)?/;
+        let m = headLikeReg.exec(input);
+        if (m) {
+            //几个#代表几级标题
+            let lvl = m[1].length;
+            let cnt = m[2];
+            //let mHead = new MHead(lvl, cnt, null, context);
+            let mHead = this.createMode({level: lvl, meta: cnt});
+            mHead.$el.text(args.meta);
+
+            //判断当前node是否允许含有head类型子节点
+            if (mHead.excludes.has(mHead.type)) {
+                //替换
+                //mHead.$el.replaceWith(mHead.$el);
+                this.replaceWith(this.context.currentMode, mHead);
+                //mHead.$el.focus();
+                moveCursorToEnd(mHead.$el);
+            } else {
+                //放入子节点数组中
+                mHead.children.push(mHead);
+            }
+            //
+            mHead.binding();
+
+        }
+    }
+
+
+}
+
+
+class Mode {
     constructor(type, meta, parent, excludes, $el, context) {
         //md 类型, 不同的类型决定了将要dom结构
         this.type = type || 'paragraph';
@@ -50,6 +178,13 @@ class MNode {
          }*/
     }
 
+    getMid() {
+        if (this.$el == null) {
+            return null;
+        }
+        return this.$el.attr("mid");
+    }
+
     binding() {
         let that = this;
         let isPinyin = false;
@@ -73,22 +208,22 @@ class MNode {
 
         }).on('keydown', function (e) {
             console.log('keydown', e.keyCode);
-            let newBlock=false;
+            let newBlock = false;
             if (e.keyCode == 13) {      //回车键
                 e.preventDefault();
                 //TODO 光标所在位置直到该模块末尾的内容要剪切到新建的下方标签里
                 //当前块的内容子光标位置, 一分为二, 后部分剪切, new Paragraph()的内容
-                newBlock=true;
+                newBlock = true;
             }
             if (e.keyCode == 40) {      //方向下键
                 //内容不为空时, 才执行
                 if (this.innerText != '') {
-                    newBlock=true;
+                    newBlock = true;
 
                 }
             }
-            if(newBlock) {
-                inputHandle($(this),that.context);
+            if (newBlock) {
+                inputHandle($(this), that.context);
                 that._initStubMNode(true);
             }
 
@@ -113,11 +248,11 @@ class MNode {
         let cid = incrId();
         let para = new Paragraph('', null, $('<p cid="' + cid + '" mdtype="paragraph" contenteditable="true"></p>'),
             that.context);
-        if(append) {
+        if (append) {
             that.$el.after(para.$el);
             that.next = para;
             that.context.mNodeMap.set(cid, para);
-        }else{
+        } else {
             that.$el.replaceWith(para.$el);
             //TODO 替换 that.context.mNodeMap.get(cid)
         }
@@ -127,15 +262,16 @@ class MNode {
     }
 }
 
-class Paragraph extends MNode {
+class Paragraph extends Mode {
     constructor(meta, parent, $el, context) {
-        super('paragraph', meta, parent, ALL_MDTYPE, $el, context);
+        super('paragraph', meta, parent, Constant.mtype.all, $el, context);
     }
 }
 
-class MHead extends MNode {
+
+class MHead extends Mode {
     constructor(level, meta, $el, context) {
-        super('head', meta, null, ALL_MDTYPE, $el, context);
+        super('head', meta, null, Constant.mtype.all, $el, context);
         //标题级别
         this.level = level || 1;
     }
@@ -152,7 +288,7 @@ class MHead extends MNode {
 }
 
 
-class Blockquote extends MNode {
+class Blockquote extends Mode {
     constructor(parent) {
         super('blockquote', null, parent, null);
     }
@@ -166,44 +302,42 @@ class Blockquote extends MNode {
     }
 }
 
+// class MLine
+
 //公共方法区
-function inputHandle($dom, context) {
-    let input = $dom.text();
-    console.log(input);
-
-    let headLikeReg = /^(#{1,6})\s+(.+)(?:\n|$)?/;
-    let m = headLikeReg.exec(input);
-    if (m) {
-        //几个#代表几级标题
-        let lvl = m[1].length;
-        let cnt = m[2];
-        let mHead = new MHead(lvl, cnt, null, context);
-        let cid = incrId();
-        let hn = 'h' + lvl;
-        mHead.$el = $('<' + hn + ' contenteditable="true" mdtype="head" cid="' + cid + '"></' + hn + '>');
-        mHead.$el.text(cnt);
-        //绑定事件处理
-        // mHead.$el
-
-        //判断当前node是否允许含有head类型子节点
-        if (context.currentMNode.excludes.has(mHead.type)) {
-            //替换
-            context.currentMNode.$el.replaceWith(mHead.$el);
-            //mHead.$el.focus();
-            moveCursorToEnd(mHead.$el);
-            context.mNodeMap.delete(context.currentMNode);
-            context.mNodeMap.set(cid, mHead);
-            context.currentMNode = null;        //置空便于回收
-        } else {
-            //放入子节点数组中
-            context.currentMNode.children.push(mHead);
-        }
-        //
-        context.currentMNode = mHead;
-        mHead.binding();
-
-    }
-}
+// function inputHandle($dom, context) {
+//     let input = $dom.text();
+//     console.log(input);
+//
+//     let headLikeReg = /^(#{1,6})\s+(.+)(?:\n|$)?/;
+//     let m = headLikeReg.exec(input);
+//     if (m) {
+//         //几个#代表几级标题
+//         let lvl = m[1].length;
+//         let cnt = m[2];
+//         let mHead = new MHead(lvl, cnt, null, context);
+//         //绑定事件处理
+//         // mHead.$el
+//
+//         //判断当前node是否允许含有head类型子节点
+//         if (context.currentMNode.excludes.has(mHead.type)) {
+//             //替换
+//             context.currentMNode.$el.replaceWith(mHead.$el);
+//             //mHead.$el.focus();
+//             moveCursorToEnd(mHead.$el);
+//             context.mNodeMap.delete(context.currentMNode);
+//             context.mNodeMap.set(cid, mHead);
+//             context.currentMNode = null;        //置空便于回收
+//         } else {
+//             //放入子节点数组中
+//             context.currentMNode.children.push(mHead);
+//         }
+//         //
+//         context.currentMNode = mHead;
+//         mHead.binding();
+//
+//     }
+// }
 
 function moveCursorToEnd($dom) {
 
@@ -236,27 +370,20 @@ function moveCursorToEnd($dom) {
 
 //
 
-let cid = -1;
-let incrId = function () {
-    return cid += 2;
-}
+// let cid = -1;
+// let incrId = function () {
+//     return cid += 2;
+// }
 
 $(function () {
-    //存放所有上下文相关的需要变量
-    let context = {};
-    const $mEditor = $('.md_editor');
-    context.$mEditor = $mEditor;
-    context.mNodeMap = new Map();
+    let mf = new ModeFactory({
+        $mEditor: $('.md_editor'),
+    });
 
     //页面加载动作
-    let cid = incrId();
-    let para$el = $('<p cid="' + cid + '" mdtype="paragraph" contenteditable="true"></p>');
-    let para = new Paragraph('', null, para$el, context);
-    context.currentMNode = para;
-    //添加到实例容器
-    context.mNodeMap.set(cid, para);
-    //添加到dom容器
-    context.$mEditor.append(para.$el);
+    let para = mf.createMode({modeClass: Paragraph, meta: ''});
+
+    //context.currentMNode = para;
     para.$el.focus();       //添加到页面后, 聚焦才有效果
     para.binding();
 

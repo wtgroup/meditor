@@ -1,51 +1,58 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>Title</title>
 
     <script type="text/javascript" src="js/lib/jquery-1.12.1.min.js"></script>
-    <script type="text/javascript" src="js/mdeditor.js"></script>
+    <!--<script type="text/javascript" src="js/mdeditor.js"></script>-->
 
     <style>
-        [contenteditable="true"] {
+        /*[contenteditable="true"]{*/
+            /*border: 1px dashed grey;*/
+            /*height: 20px;*/
+        /*}*/
+        [mtype]{
             border: 1px solid green;
             caret-color: red;
+            /*caret-color: transparent;*/
+            height: 20px;
+        }
+        .cursor{
+
         }
     </style>
 </head>
 <body>
-<div contenteditable="true" id="txt"></div>
+<!--<div contenteditable="true" id="txt"></div>-->
 <!--<textarea name="" id="txt" cols="30" rows="10"></textarea>-->
 
-<div class="md_editor">
+<div class="md_editor" contenteditable="true">
+<!--<div class="md_editor">-->
 
-    <!--<div class="md_cursor" style="width: 8px; height: 26px;"></div>-->
+    <div class="cursor" style="width: 8px; height: 26px;display:none"></div>
 
-
-    <!--<p id='g0' class="md_group"></p>-->
+    <p id='p1' contenteditable="true"style="height: 20px;border: 1px dashed grey"></p>
 
 
 </div>
 
 
 </body>
-<script>
+<script type="text/javascript">
     $(function () {
-        $('#txt').on('input',function () {
-            //这两个属性只适合input, textarea
-            //console.log(this.selectionStart, this.selectionEnd);
-            let textbox = this;
-            let sel = window.getSelection();
-            let range = document.createRange();
-            //选择节点中的所有内容==全选
-            range.selectNodeContents(textbox);
-            //collapses the range to end
-            range.collapse(false);
-            sel.removeAllRanges();
-            //更新range
-            sel.addRange(range);
-        })
-
+        $('#p1').focus();
+        $('#p1').on('click',function () {
+            console.log('click')
+        }).on('focus',function () {
+            console.log('focus')
+        }).on('input',function () {
+            console.log('input');
+        }).on('keyup',function () {
+            console.log('keyup');
+        }).on('keydown',function () {
+            console.log('keydown');
+        });
     })
 
 </script>
